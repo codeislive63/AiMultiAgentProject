@@ -1,0 +1,25 @@
+<Project>
+
+  <!-- Общие настройки вывода для всех проектов -->
+  <PropertyGroup>
+    <!-- artifacts/ProjectName/ -->
+    <BaseOutputPath>$(MSBuildThisFileDirectory)artifacts\$(MSBuildProjectName)\</BaseOutputPath>
+
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+    <GenerateRuntimeConfigurationFiles>true</GenerateRuntimeConfigurationFiles>
+  </PropertyGroup>
+
+  <!-- Конфигурация Debug -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
+    <!-- artifacts/ProjectName/Debug/ -->
+    <OutputPath>$(BaseOutputPath)Debug\</OutputPath>
+  </PropertyGroup>
+
+  <!-- Конфигурация Release -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <!-- artifacts/ProjectName/Release/ -->
+    <OutputPath>$(BaseOutputPath)Release\</OutputPath>
+  </PropertyGroup>
+
+</Project>

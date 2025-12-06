@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="src/AiMultiAgent.Core/AiMultiAgent.Core.csproj" Id="78b11349-86a5-468f-bd5d-c3e5665414a4" />
+  <Project Path="src/AiMultiAgent.Mcp.Client/AiMultiAgent.Mcp.Client.csproj" />
+  <Project Path="src/AiMultiAgent.Mcp.Server/AiMultiAgent.Mcp.Server.csproj" />
+</Solution>
