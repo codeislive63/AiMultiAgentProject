@@ -1,13 +1,11 @@
-﻿using AiMultiAgent.Core.Agents.CodeReview;
-using AiMultiAgent.Core.Agents.Documentation;
-
-namespace AiMultiAgent.Core.Agents.Pm;
+﻿namespace AiMultiAgent.Core.Agents.Pm;
 
 public sealed class PmOrchestrationReport
 {
-    public string Summary { get; init; } = default!;
-    public List<string> ReasoningLog { get; init; } = [];
-
-    public CodeReviewResult? CodeReview { get; init; }
-    public DocumentationResult? Documentation { get; init; }
+    public object Meta { get; set; } = new { };
+    public object ToolResults { get; set; } = new { };
+    public List<object> Risks { get; set; } = [];
+    public List<object> NextActions { get; set; } = [];
+    public string Summary { get; set; } = "";
+    public List<TraceEvent> Trace { get; set; } = [];
 }
