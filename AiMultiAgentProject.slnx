@@ -2,5 +2,6 @@
   <Project Path="src/AiMultiAgent.Core/AiMultiAgent.Core.csproj" Id="78b11349-86a5-468f-bd5d-c3e5665414a4" />
   <Project Path="src/AiMultiAgent.Mcp.Client/AiMultiAgent.Mcp.Client.csproj" />
   <Project Path="src/AiMultiAgent.Mcp.Server/AiMultiAgent.Mcp.Server.csproj" />
+  <Project Path="tests/AiMultiAgent.Core.Tests/AiMultiAgent.Core.Tests.csproj" />
   <Project Path="tests/AiMultiAgent.Mcp.Client.Tests/AiMultiAgent.Mcp.Client.Tests.csproj" Id="511038c0-5a94-455c-ae70-352d49d13668" />
 </Solution>
