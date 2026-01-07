@@ -10,10 +10,10 @@ namespace AiMultiAgent.Mcp.Client;
 /// Универсальный HTTP+SSE клиент для MCP.
 /// Снаружи ты работаешь только с CallToolAsync / CallToolsListAsync
 /// </summary>
-public sealed class McpSseClient(HttpClient http, IOptions<McpSseClientOptions> options)
+public sealed class SseMcpClient(HttpClient http, IOptions<McpClientOptions> options) : IMcpClient
 {
     private readonly HttpClient _http = http;
-    private readonly McpSseClientOptions _options = options.Value;
+    private readonly McpClientOptions _options = options.Value;
 
     private const string JsonRpcVersion = "2.0";
     private const string ToolsCallMethod = "tools/call";

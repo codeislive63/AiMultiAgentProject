@@ -5,7 +5,7 @@ namespace AiMultiAgent.Mcp.Server.Controllers;
 
 [ApiController]
 [Route("[controller]/mcp")]
-public class DebugController(McpSseClient mcpSseClient) : ControllerBase
+public class DebugController(SseMcpClient mcpSseClient) : ControllerBase
 {
     // GET /debug/mcp/echo?text=Привет
     [HttpGet("echo")]

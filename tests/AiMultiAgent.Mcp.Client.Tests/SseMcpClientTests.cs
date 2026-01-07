@@ -8,12 +8,12 @@ using System.Text;
 namespace AiMultiAgent.Mcp.Client.Tests;
 
 /// <summary>
-/// Набор юнит-тестов для <see cref="McpSseClient"/>.
+/// Набор юнит-тестов для <see cref="SseMcpClient"/>.
 /// Реальный MCP Server в этих тестах НЕ запускается!
 /// Мы подменяем сеть через <see cref="FakeHttpMessageHandler"/>, который возвращает заранее
 /// подготовленный SSE-ответ, тестируется логика клиента
 /// </summary>
-public class McpSseClientTests
+public class SseMcpClientTests
 {
     /// <summary>
     /// Фейковый <see cref="HttpMessageHandler"/> для unit-тестов.
@@ -45,7 +45,7 @@ public class McpSseClientTests
     }
 
     /// <summary>
-    /// Проверяет, что <see cref="McpSseClient.SendAsync(object, string, CancellationToken)"/>
+    /// Проверяет, что <see cref="SseMcpClient.SendAsync(object, string, CancellationToken)"/>
     /// корректно парсит первую строку "data: ..." из SSE-ответа и возвращает JSON-результат
     /// </summary>
     [Fact]
@@ -64,12 +64,12 @@ public class McpSseClientTests
             BaseAddress = new Uri("http://localhost")
         };
 
-        var options = Options.Create(new McpSseClientOptions
+        var options = Options.Create(new McpClientOptions
         {
             EndpointPath = "/mcp"
         });
 
-        var client = new McpSseClient(httpClient, options);
+        var client = new SseMcpClient(httpClient, options);
         var result = await client.SendAsync(new { ping = "pong" });
 
         result.Should().NotBeNull();
@@ -77,7 +77,7 @@ public class McpSseClientTests
     }
 
     /// <summary>
-    /// Проверяет, что <see cref="McpSseClient.SendAsync(object, CancellationToken)"/>
+    /// Проверяет, что <see cref="SseMcpClient.SendAsync(object, CancellationToken)"/>
     /// игнорирует строки, не начинающиеся с "data:", и берёт первую подходящую "data:" строку
     /// </summary>
     [Fact]
@@ -97,7 +97,7 @@ public class McpSseClientTests
     }
 
     /// <summary>
-    /// Проверяет, что <see cref="McpSseClient.SendAsync(object, CancellationToken)"/>
+    /// Проверяет, что <see cref="SseMcpClient.SendAsync(object, CancellationToken)"/>
     /// бросает исключение, если в SSE-ответе нет ни одной строки "data:"
     /// </summary>
     [Fact]
@@ -116,7 +116,7 @@ public class McpSseClientTests
     }
 
     /// <summary>
-    /// Проверяет, что <see cref="McpSseClient.CallToolAsync(string, object?, string?, CancellationToken)"/>
+    /// Проверяет, что <see cref="SseMcpClient.CallToolAsync(string, object?, string?, CancellationToken)"/>
     /// формирует корректный JSON-RPC payload
     /// и отправляет его через HTTP POST на указанный EndpointPath
     /// </summary>
@@ -159,7 +159,7 @@ public class McpSseClientTests
     }
 
     /// <summary>
-    /// Проверяет, что типизированный <see cref="McpSseClient.CallToolAsync{TResult}(string, object?, string?, CancellationToken)"/>
+    /// Проверяет, что типизированный <see cref="SseMcpClient.CallToolAsync{TResult}(string, object?, string?, CancellationToken)"/>
     /// умеет извлекать результат из result.content[0].json
     /// </summary>
     [Fact]
@@ -176,7 +176,7 @@ public class McpSseClientTests
     }
 
     /// <summary>
-    /// Проверяет, что типизированный <see cref="McpSseClient.CallToolAsync{TResult}(string, object?, string?, CancellationToken)"/>
+    /// Проверяет, что типизированный <see cref="SseMcpClient.CallToolAsync{TResult}(string, object?, string?, CancellationToken)"/>
     /// умеет распарсить JSON-строку из result.content[0].text (fallback-ветка).
     /// </summary>
     [Fact]
@@ -193,7 +193,7 @@ public class McpSseClientTests
     }
 
     /// <summary>
-    /// Проверяет, что типизированный <see cref="McpSseClient.CallToolAsync{TResult}(string, object?, string?, CancellationToken)"/>
+    /// Проверяет, что типизированный <see cref="SseMcpClient.CallToolAsync{TResult}(string, object?, string?, CancellationToken)"/>
     /// возвращает default, если content отсутствует или пустой
     /// </summary>
     [Fact]
@@ -209,7 +209,7 @@ public class McpSseClientTests
     }
 
     /// <summary>
-    /// Проверяет, что типизированный <see cref="McpSseClient.CallToolAsync{TResult}(string, object?, string?, CancellationToken)"/>
+    /// Проверяет, что типизированный <see cref="SseMcpClient.CallToolAsync{TResult}(string, object?, string?, CancellationToken)"/>
     /// бросает исключение, если content[0] не содержит ни 'json', ни JSON-парсибельного 'text'
     /// </summary>
     [Fact]
@@ -226,7 +226,7 @@ public class McpSseClientTests
     }
 
     /// <summary>
-    /// Проверяет, что <see cref="McpSseClient.CallToolsListAsync(string?, CancellationToken)"/>
+    /// Проверяет, что <see cref="SseMcpClient.CallToolsListAsync(string?, CancellationToken)"/>
     /// формирует JSON-RPC запрос с method/tools/list
     /// </summary>
     [Fact]
@@ -253,7 +253,7 @@ public class McpSseClientTests
     }
 
     /// <summary>
-    /// Простой DTO для проверки типизированных вызовов <see cref="McpSseClient.CallToolAsync{TResult}"/>
+    /// Простой DTO для проверки типизированных вызовов <see cref="SseMcpClient.CallToolAsync{TResult}"/>
     /// </summary>
     private sealed class MyDto
     {
@@ -261,15 +261,15 @@ public class McpSseClientTests
     }
 
     /// <summary>
-    /// Создаёт <see cref="McpSseClient"/> с фейковым HTTP-ответом SSE
+    /// Создаёт <see cref="SseMcpClient"/> с фейковым HTTP-ответом SSE
     /// </summary>
-    private static McpSseClient CreateClientReturningSse(string sseBody)
+    private static SseMcpClient CreateClientReturningSse(string sseBody)
         => CreateClientWithHandler(_ => FakeHttpMessageHandler.CreateSseResponse(sseBody));
 
     /// <summary>
-    /// Создаёт <see cref="McpSseClient"/> с пользовательским обработчиком HTTP-запросов
+    /// Создаёт <see cref="SseMcpClient"/> с пользовательским обработчиком HTTP-запросов
     /// </summary>
-    private static McpSseClient CreateClientWithHandler(Func<HttpRequestMessage, HttpResponseMessage> responder)
+    private static SseMcpClient CreateClientWithHandler(Func<HttpRequestMessage, HttpResponseMessage> responder)
     {
         var handler = new FakeHttpMessageHandler(responder);
 
@@ -278,11 +278,11 @@ public class McpSseClientTests
             BaseAddress = new Uri("http://localhost")
         };
 
-        var options = Options.Create(new McpSseClientOptions
+        var options = Options.Create(new McpClientOptions
         {
             EndpointPath = "/mcp"
         });
 
-        return new McpSseClient(httpClient, options);
+        return new SseMcpClient(httpClient, options);
     }
 }
