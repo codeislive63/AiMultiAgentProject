@@ -3,6 +3,7 @@ using AiMultiAgent.Core.Agents.Documentation;
 using AiMultiAgent.Core.Agents.Pm;
 using AiMultiAgent.Mcp.Client;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Serialization;
 using Scalar.AspNetCore;
 
 
@@ -15,6 +16,7 @@ builder.Services
     .AddControllers()
     .AddNewtonsoftJson(options =>
     {
+        options.SerializerSettings.ContractResolver = new DefaultContractResolver();
         options.SerializerSettings.Formatting = Formatting.Indented;
     });
 
