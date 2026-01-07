@@ -5,6 +5,10 @@ using AiMultiAgent.Mcp.Client;
 using Newtonsoft.Json;
 using Scalar.AspNetCore;
 
+
+const string McpPath = "/api/mcp";
+
+
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services
@@ -24,22 +28,22 @@ builder.Services.Configure<RouteOptions>(options =>
 });
 
 
-builder.Services.Configure<McpSseClientOptions>(
-    options => options.EndpointPath = "/api/mcp"
-);
+builder.Services.AddSseMcpClient(
+    options => options.EndpointPath = McpPath,
+    http => http.BaseAddress = new Uri("https://localhost:7244")
+);;
 
-builder.Services.AddHttpClient<McpSseClient>(
-    client => client.BaseAddress = new Uri("https://localhost:7244")
-);
+
+builder.Services.AddMcpServer()
+    .WithHttpTransport()
+    .WithToolsFromAssembly();
+
 
 // Агенты
 builder.Services.AddSingleton<PmAgent>();
 builder.Services.AddSingleton<CodeReviewerAgent>();
 builder.Services.AddSingleton<DocumentationAgent>();
 
-builder.Services.AddMcpServer()
-    .WithHttpTransport()
-    .WithToolsFromAssembly();
 
 var app = builder.Build();
 
@@ -61,6 +65,6 @@ if (app.Environment.IsDevelopment())
 
 app.MapControllers();
 
-app.MapMcp("/api/mcp");
+app.MapMcp(McpPath);
 
 app.Run();
