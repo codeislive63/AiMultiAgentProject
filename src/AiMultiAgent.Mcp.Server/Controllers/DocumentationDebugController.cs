@@ -6,7 +6,7 @@ namespace AiMultiAgent.Mcp.Server.Controllers;
 
 [ApiController]
 [Route("[controller]/mcp")]
-public sealed class DocumentationDebugController(McpSseClient mcpSseClient) : ControllerBase
+public sealed class DocumentationDebugController(SseMcpClient mcpSseClient) : ControllerBase
 {
     // POST /DocumentationDebug/mcp/generate
     [HttpPost("generate")]

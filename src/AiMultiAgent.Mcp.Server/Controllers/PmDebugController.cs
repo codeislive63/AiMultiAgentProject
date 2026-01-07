@@ -6,7 +6,7 @@ namespace AiMultiAgent.Mcp.Server.Controllers;
 
 [ApiController]
 [Route("[controller]/mcp")]
-public sealed class PmDebugController(McpSseClient mcpSseClient) : ControllerBase
+public sealed class PmDebugController(SseMcpClient mcpSseClient) : ControllerBase
 {
     // GET /PmDebug/mcp/plan?goal=...
     [HttpGet("plan")]

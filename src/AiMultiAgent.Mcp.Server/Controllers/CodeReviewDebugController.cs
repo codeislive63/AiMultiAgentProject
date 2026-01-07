@@ -6,7 +6,7 @@ namespace AiMultiAgent.Mcp.Server.Controllers;
 
 [ApiController]
 [Route("[controller]/mcp")]
-public sealed class CodeReviewDebugController(McpSseClient mcpSseClient) : ControllerBase
+public sealed class CodeReviewDebugController(SseMcpClient mcpSseClient) : ControllerBase
 {
     // POST /CodeReviewDebug/mcp/review
     [HttpPost("review")]
