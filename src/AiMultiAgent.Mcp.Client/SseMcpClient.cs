@@ -1,6 +1,7 @@
 ﻿using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using Newtonsoft.Json.Serialization;
 using System.Net.Http.Headers;
 using System.Text;
 
@@ -14,6 +15,12 @@ public sealed class SseMcpClient(HttpClient http, IOptions<McpClientOptions> opt
 {
     private readonly HttpClient _http = http;
     private readonly McpClientOptions _options = options.Value;
+
+    private static readonly JsonSerializer CamelCaseSerializer = JsonSerializer.Create(new JsonSerializerSettings
+    {
+        ContractResolver = new CamelCasePropertyNamesContractResolver()
+    });
+
 
     private const string JsonRpcVersion = "2.0";
     private const string ToolsCallMethod = "tools/call";
@@ -74,7 +81,7 @@ public sealed class SseMcpClient(HttpClient http, IOptions<McpClientOptions> opt
         {
             null => [],
             JObject j => j,
-            _ => JObject.FromObject(arguments)
+            _ => JObject.FromObject(arguments, CamelCaseSerializer)
         };
 
         var payload = new JObject
