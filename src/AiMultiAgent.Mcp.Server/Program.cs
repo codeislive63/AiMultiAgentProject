@@ -16,7 +16,7 @@ builder.Services
     .AddNewtonsoftJson(options =>
     {
         options.SerializerSettings.Formatting = Formatting.Indented;
-    }); ;
+    });
 
 builder.Services.AddOpenApi();
 
@@ -31,7 +31,7 @@ builder.Services.Configure<RouteOptions>(options =>
 builder.Services.AddSseMcpClient(
     options => options.EndpointPath = McpPath,
     http => http.BaseAddress = new Uri("https://localhost:7244")
-);;
+);
 
 
 builder.Services.AddMcpServer()
