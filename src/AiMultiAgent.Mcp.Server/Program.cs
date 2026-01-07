@@ -39,7 +39,7 @@ builder.Services.AddMcpServer()
     .WithToolsFromAssembly();
 
 
-// Агенты
+// РђРіРµРЅС‚С‹
 builder.Services.AddSingleton<PmAgent>();
 builder.Services.AddSingleton<CodeReviewerAgent>();
 builder.Services.AddSingleton<DocumentationAgent>();
