@@ -4,10 +4,14 @@ using AiMultiAgent.Core.Agents.Pm.Llm;
 using AiMultiAgent.Mcp.Client;
 using GenerativeAI.Exceptions;
 using Microsoft.Extensions.Logging;
-using System.Text.Json;
 
 namespace AiMultiAgent.Core.Agents.Pm;
 
+/// <summary>
+/// Project Manager Agent
+/// Оркестрирует вызовы MCP tools
+/// собирает ToolResults + Trace и просит LLM собрать финальный отчёт
+/// </summary>
 public sealed class PmAgent(
     IMcpClient mcp,
     CodeReviewerAgent codeReviewStub,
@@ -21,6 +25,12 @@ public sealed class PmAgent(
     private readonly IPmPlanner _planner = planner;
     private readonly ILogger<PmAgent> _log = logger;
 
+    private readonly PmAgentTelemetry _telemetry = new(logger);
+
+    /// <summary>
+    /// Оркестрирует выполнение плана
+    /// а затем агрегирует всё в единый <see cref="PmOrchestrationReport"/>
+    /// </summary>
     public async Task<PmOrchestrationReport> OrchestrateAsync(
         PmOrchestrationRequest req,
         CancellationToken ct = default)
@@ -29,12 +39,23 @@ public sealed class PmAgent(
         var trace = new List<TraceEvent>();
 
         void Trace(string type, string? tool = null, string? details = null)
-            => trace.Add(new TraceEvent(DateTimeOffset.UtcNow, type, tool, details));
+        {
+            trace.Add(new TraceEvent(
+                DateTimeOffset.UtcNow,
+                type,
+                tool,
+                details)
+            );
+        }
 
         void Step(string message)
         {
             Trace("REASONING", details: message);
-            _log.LogInformation("[PM reasoning] {Message}", message);
+
+            if (_log.IsEnabled(LogLevel.Information))
+            {
+                _log.LogInformation("[PM reasoning] {Message}", message);
+            }
         }
 
         Step("PM: старт. Запрашиваю у LLM план действий");
@@ -45,6 +66,11 @@ public sealed class PmAgent(
         {
             plan = await _planner.CreatePlanAsync(req, ct);
             Step($"PM: план получен. Steps={plan.Steps.Count}");
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            // Уважаем CancellationToken
+            throw;
         }
         catch (Exception ex)
         {
@@ -82,9 +108,10 @@ public sealed class PmAgent(
 
             try
             {
-                if (step.Tool == "code_review")
+                if (string.Equals(step.Tool, "code_review", StringComparison.OrdinalIgnoreCase))
                 {
-                    Step($"LLM suggested args for code_review: {JsonSerializer.Serialize(step.Arguments)}");
+                    // NEW: структурно + безопасно
+                    _telemetry.LogSuggestedArgs("code_review", req, step.Arguments);
 
                     // SAFE-MODE args
                     var mcpArgs = new
@@ -109,9 +136,9 @@ public sealed class PmAgent(
                     toolResults[step.Id] = result;
                     toolResults["code_review_usedFallback"] = usedFallback;
                 }
-                else if (step.Tool == "generate_docs")
+                else if (string.Equals(step.Tool, "generate_docs", StringComparison.OrdinalIgnoreCase))
                 {
-                    Step($"LLM suggested args for generate_docs: {JsonSerializer.Serialize(step.Arguments)}");
+                    _telemetry.LogSuggestedArgs("generate_docs", req, step.Arguments);
 
                     // SAFE-MODE args
                     var mcpArgs = new
@@ -143,6 +170,12 @@ public sealed class PmAgent(
 
                 Trace("TOOL_CALL_END", tool: step.Tool, details: "ok");
             }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                // Уважаем CancellationToken
+                Trace("TOOL_CALL_END", tool: step.Tool, details: "cancelled");
+                throw;
+            }
             catch (Exception ex)
             {
                 Trace("TOOL_CALL_END", tool: step.Tool, details: "error: " + ex.Message);
@@ -151,7 +184,9 @@ public sealed class PmAgent(
                 toolResults[step.Id] = new { error = ex.Message, exception = ex.GetType().Name };
 
                 if (!string.Equals(step.OnFail, "continue", StringComparison.OrdinalIgnoreCase))
+                {
                     throw;
+                }
             }
         }
 
@@ -176,22 +211,17 @@ public sealed class PmAgent(
             Step("PM: отчёт готов (LLM aggregation)");
             return report;
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            // Уважаем CancellationToken
+            throw;
+        }
         catch (Exception ex)
         {
             Step($"PM: LLM aggregation упала ({ex.GetType().Name}). Fallback aggregation");
             _log.LogWarning(ex, "LLM aggregation failed, fallback report");
 
-            var aggregation = "fallback";
-
-            if (ex is ApiException apiEx)
-            {
-                var msg = apiEx.Message ?? "";
-
-                if (apiEx.ErrorCode == 429 || msg.Contains("RESOURCE_EXHAUSTED", StringComparison.OrdinalIgnoreCase))
-                    aggregation = "fallback_quota";
-                else if (apiEx.ErrorCode == 503 || msg.Contains("UNAVAILABLE", StringComparison.OrdinalIgnoreCase))
-                    aggregation = "fallback_overloaded";
-            }
+            var aggregation = ClassifyAggregationFailure(ex);
 
             return new PmOrchestrationReport
             {
@@ -213,6 +243,49 @@ public sealed class PmAgent(
         }
     }
 
+    /// <summary>
+    /// Классифицирует причины падения агрегации, чтобы в Meta.aggregration было видно что произошло
+    /// </summary>
+    private static string ClassifyAggregationFailure(Exception ex)
+    {
+        if (ex is ApiException apiEx)
+        {
+            var msg = apiEx.Message ?? "";
+
+            if (apiEx.ErrorCode == 429 || msg.Contains("RESOURCE_EXHAUSTED", StringComparison.OrdinalIgnoreCase))
+            {
+                return "fallback_quota";
+            }
+
+            if (apiEx.ErrorCode == 503 || msg.Contains("UNAVAILABLE", StringComparison.OrdinalIgnoreCase) || msg.Contains("overloaded", StringComparison.OrdinalIgnoreCase))
+            {
+                return "fallback_overloaded";
+            }
+
+            return "fallback_api";
+        }
+
+        if (ex is HttpRequestException)
+        {
+            return "fallback_network";
+        }
+
+        if (ex is TimeoutException)
+        {
+            return "fallback_timeout";
+        }
+
+        if (ex is TaskCanceledException)
+        {
+            return "fallback_timeout";
+        }
+
+        return "fallback";
+    }
+
+    /// <summary>
+    /// Пытается вызвать MCP tool, а при ошибке — уходит в fallback
+    /// </summary>
     private async Task<(TResult Result, bool UsedFallback)> TryMcpOrFallbackAsync<TResult>(
         string toolName,
         object mcpArgs,
@@ -223,7 +296,11 @@ public sealed class PmAgent(
         try
         {
             step($"Пробую вызвать MCP tool '{toolName}'");
-            _log.LogInformation("[PM MCP] tools/call -> {Tool}", toolName);
+            
+            if (_log.IsEnabled(LogLevel.Information))
+            {
+                _log.LogInformation("[PM MCP] tools/call -> {Tool}", toolName);
+            }
 
             var result = await _mcp.CallToolAsync<TResult>(
                 toolName: toolName,
@@ -235,10 +312,21 @@ public sealed class PmAgent(
             step($"MCP tool '{toolName}' успешно вернул результат");
             return (result, false);
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            // Уважаем CancellationToken
+            throw;
+        }
         catch (Exception ex)
         {
             step($"MCP вызов '{toolName}' не удался ({ex.GetType().Name}). Использую fallback-заглушку");
-            _log.LogWarning(ex, "[PM MCP] tool '{Tool}' failed. Using fallback stub.", toolName);
+
+            if (_log.IsEnabled(LogLevel.Warning))
+            {
+                _log.LogWarning(ex, "[PM MCP] tool '{Tool}' failed. Using fallback stub.", toolName);
+            }
+            
+            ct.ThrowIfCancellationRequested();
 
             var fallback = await fallbackFactory();
             return (fallback, true);
