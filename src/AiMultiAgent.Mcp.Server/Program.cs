@@ -23,6 +23,9 @@ builder.Services
         options.SerializerSettings.Formatting = Formatting.Indented;
     });
 
+
+builder.Services.AddMemoryCache();
+
 builder.Services.AddOpenApi();
 
 

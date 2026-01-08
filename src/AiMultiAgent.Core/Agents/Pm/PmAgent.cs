@@ -2,15 +2,12 @@
 using AiMultiAgent.Core.Agents.Documentation;
 using AiMultiAgent.Core.Agents.Pm.Llm;
 using AiMultiAgent.Mcp.Client;
+using GenerativeAI.Exceptions;
 using Microsoft.Extensions.Logging;
+using System.Text.Json;
 
 namespace AiMultiAgent.Core.Agents.Pm;
 
-/// <summary>
-/// Project Manager Agent.
-/// Оркестрирует вызовы других агентов через MCP (code_review + generate_docs),
-/// агрегирует ответы в единый отчёт (JSON + краткий summary)
-/// </summary>
 public sealed class PmAgent(
     IMcpClient mcp,
     CodeReviewerAgent codeReviewStub,
@@ -24,10 +21,6 @@ public sealed class PmAgent(
     private readonly IPmPlanner _planner = planner;
     private readonly ILogger<PmAgent> _log = logger;
 
-    /// <summary>
-    /// Вызывает через MCP агента code_review и documentation, агрегирует их результаты
-    /// и возвращает единый отчёт с reasoning steps
-    /// </summary>
     public async Task<PmOrchestrationReport> OrchestrateAsync(
         PmOrchestrationRequest req,
         CancellationToken ct = default)
@@ -65,14 +58,14 @@ public sealed class PmAgent(
                 [
                     new PmPlanStep
                     {
-                        Id = "code_review",
+                        Id = "1",
                         Tool = "code_review",
                         Arguments = new { title = req.PrTitle, description = req.PrDescription, diff = req.Diff },
                         OnFail = "continue"
                     },
                     new PmPlanStep
                     {
-                        Id = "generate_docs",
+                        Id = "2",
                         Tool = "generate_docs",
                         Arguments = new { componentName = req.ComponentName, description = req.ComponentDescription },
                         OnFail = "continue"
@@ -81,7 +74,7 @@ public sealed class PmAgent(
             };
         }
 
-        // Выполнение плана
+        // Execute plan
         foreach (var step in plan.Steps)
         {
             Step($"PM: выполняю шаг {step.Id} -> tool '{step.Tool}'");
@@ -91,9 +84,19 @@ public sealed class PmAgent(
             {
                 if (step.Tool == "code_review")
                 {
+                    Step($"LLM suggested args for code_review: {JsonSerializer.Serialize(step.Arguments)}");
+
+                    // SAFE-MODE args
+                    var mcpArgs = new
+                    {
+                        title = req.PrTitle,
+                        description = req.PrDescription,
+                        diff = req.Diff
+                    };
+
                     var (result, usedFallback) = await TryMcpOrFallbackAsync(
                         toolName: "code_review",
-                        mcpArgs: step.Arguments,
+                        mcpArgs: mcpArgs,
                         fallbackFactory: async () =>
                         {
                             Step("Fallback: локальный CodeReviewerAgent");
@@ -108,9 +111,18 @@ public sealed class PmAgent(
                 }
                 else if (step.Tool == "generate_docs")
                 {
+                    Step($"LLM suggested args for generate_docs: {JsonSerializer.Serialize(step.Arguments)}");
+
+                    // SAFE-MODE args
+                    var mcpArgs = new
+                    {
+                        componentName = req.ComponentName,
+                        description = req.ComponentDescription
+                    };
+
                     var (result, usedFallback) = await TryMcpOrFallbackAsync(
                         toolName: "generate_docs",
-                        mcpArgs: step.Arguments,
+                        mcpArgs: mcpArgs,
                         fallbackFactory: async () =>
                         {
                             Step("Fallback: локальный DocumentationAgent");
@@ -143,23 +155,22 @@ public sealed class PmAgent(
             }
         }
 
-        // Аггрегация через LLM
         Step("PM: запрашиваю у LLM финальную агрегацию отчёта");
 
         try
         {
             var report = await _planner.AggregateAsync(req, toolResults, trace, ct);
 
-            // Гарантируем стабильные поля (чтобы отчёт всегда был машинно-читаемым)
+            // Force stable machine-readable fields
             report.ToolResults = toolResults;
             report.Trace = trace;
 
-            report.Meta = new
+            report.Meta = new Dictionary<string, object?>
             {
-                objective = plan.Objective,
-                steps = plan.Steps.Count,
-                timestamp = DateTimeOffset.UtcNow,
-                aggregation = "llm"
+                ["objective"] = plan.Objective,
+                ["steps"] = plan.Steps.Count,
+                ["timestamp"] = DateTimeOffset.UtcNow,
+                ["aggregation"] = "llm"
             };
 
             Step("PM: отчёт готов (LLM aggregation)");
@@ -170,14 +181,28 @@ public sealed class PmAgent(
             Step($"PM: LLM aggregation упала ({ex.GetType().Name}). Fallback aggregation");
             _log.LogWarning(ex, "LLM aggregation failed, fallback report");
 
+            var aggregation = "fallback";
+
+            if (ex is ApiException apiEx)
+            {
+                var msg = apiEx.Message ?? "";
+
+                if (apiEx.ErrorCode == 429 || msg.Contains("RESOURCE_EXHAUSTED", StringComparison.OrdinalIgnoreCase))
+                    aggregation = "fallback_quota";
+                else if (apiEx.ErrorCode == 503 || msg.Contains("UNAVAILABLE", StringComparison.OrdinalIgnoreCase))
+                    aggregation = "fallback_overloaded";
+            }
+
             return new PmOrchestrationReport
             {
-                Meta = new
+                Meta = new Dictionary<string, object?>
                 {
-                    objective = plan.Objective,
-                    steps = plan.Steps.Count,
-                    timestamp = DateTimeOffset.UtcNow,
-                    aggregation = "fallback"
+                    ["objective"] = plan.Objective,
+                    ["steps"] = plan.Steps.Count,
+                    ["timestamp"] = DateTimeOffset.UtcNow,
+                    ["aggregation"] = aggregation,
+                    ["llm_error"] = ex.GetType().Name,
+                    ["llm_error_message"] = ex.Message
                 },
                 ToolResults = toolResults,
                 Summary = "PM report (fallback aggregation).",
