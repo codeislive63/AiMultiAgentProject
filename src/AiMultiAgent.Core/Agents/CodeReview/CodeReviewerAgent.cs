@@ -4,14 +4,13 @@
 public class CodeReviewerAgent
 {
     public Task<CodeReviewResult> ReviewAsync(
-        string prTitle,
-        string prDescription,
-        string diff,
+        string fileName,
+        string data,
         CancellationToken ct = default)
     {
         var result = new CodeReviewResult
         {
-            Summary = $"Stub: обзор PR \"{prTitle}\" ещё не реализован, но пайплайн работает.",
+            Summary = $"Stub: обзор ещё не реализован, но пайплайн работает.",
             Issues =
             [
                 new CodeReviewIssue

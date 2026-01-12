@@ -86,7 +86,7 @@ public sealed class PmAgent(
                     {
                         Id = "1",
                         Tool = "code_review",
-                        Arguments = new { title = req.PrTitle, description = req.PrDescription, diff = req.Diff },
+                        Arguments = new { title = req.FileName, description = req.Data},
                         OnFail = "continue"
                     },
                     new PmPlanStep
@@ -116,9 +116,8 @@ public sealed class PmAgent(
                     // SAFE-MODE args
                     var mcpArgs = new
                     {
-                        title = req.PrTitle,
-                        description = req.PrDescription,
-                        diff = req.Diff
+                        fileName = req.FileName,
+                        data = req.Data
                     };
 
                     var (result, usedFallback) = await TryMcpOrFallbackAsync(
@@ -127,7 +126,7 @@ public sealed class PmAgent(
                         fallbackFactory: async () =>
                         {
                             Step("Fallback: локальный CodeReviewerAgent");
-                            return await _codeReviewStub.ReviewAsync(req.PrTitle, req.PrDescription, req.Diff, ct);
+                            return await _codeReviewStub.ReviewAsync(req.FileName, req.Data, ct);
                         },
                         step: Step,
                         ct: ct

@@ -337,9 +337,8 @@ public sealed class PmAgentTests
     /// </summary>
     private static PmOrchestrationRequest CreateRequest() => new()
     {
-        PrTitle = "PR title",
-        PrDescription = "PR description",
-        Diff = "diff --git a/... b/...",
+        FileName = "File Name",
+        Data = "Data",
         ComponentName = "Component",
         ComponentDescription = "Component description"
     };

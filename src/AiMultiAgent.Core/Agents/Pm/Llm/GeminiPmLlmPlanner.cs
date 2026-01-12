@@ -36,7 +36,7 @@ public sealed partial class GeminiPmLlmPlanner(IChatClient chat, IMemoryCache ca
             Allowed tools: code_review, generate_docs.
 
             For tool "code_review" arguments MUST be exactly:
-            { "title": string, "description": string, "diff": string }
+            { "fileName": string, "data": string }
 
             For tool "generate_docs" arguments MUST be exactly:
             { "componentName": string, "description": string }

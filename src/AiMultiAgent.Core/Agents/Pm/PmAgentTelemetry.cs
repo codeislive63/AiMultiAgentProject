@@ -26,11 +26,11 @@ internal sealed class PmAgentTelemetry(ILogger log)
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
     };
 
-    private static readonly Action<ILogger, string, string?, int, string?, int, Exception?> _suggestedCodeReviewArgs =
-        LoggerMessage.Define<string, string?, int, string?, int>(
+    private static readonly Action<ILogger, string, string, string?, int, Exception?> _suggestedCodeReviewArgs =
+        LoggerMessage.Define<string, string?, string?, int>(
             LogLevel.Information,
             new EventId(2101, nameof(_suggestedCodeReviewArgs)),
-            "LLM suggested args for tool={Tool}. title={Title} descLen={DescLen} diffSha256={DiffSha} diffLen={DiffLen}");
+            "LLM suggested args for tool={Tool}. title={Title} diffSha256={DiffSha} diffLen={DiffLen}");
 
     private static readonly Action<ILogger, string, string?, int, Exception?> _suggestedGenerateDocsArgs =
         LoggerMessage.Define<string, string?, int>(
@@ -56,22 +56,21 @@ internal sealed class PmAgentTelemetry(ILogger log)
         {
             if (string.Equals(toolName, "code_review", StringComparison.OrdinalIgnoreCase))
             {
-                var diffLen = req.Diff?.Length ?? 0;
-                var diffSha = Sha256Hex(req.Diff);
+                var dataLen = req.Data?.Length ?? 0;
+                var dataSha = Sha256Hex(req.Data);
 
                 _suggestedCodeReviewArgs(
                     _log,
                     toolName,
-                    req.PrTitle,
-                    req.PrDescription?.Length ?? 0,
-                    diffSha,
-                    diffLen,
+                    req.FileName,
+                    dataSha,
+                    dataLen,
                     null
                 );
 
-                if (DiffPreviewChars > 0 && !string.IsNullOrEmpty(req.Diff))
+                if (DiffPreviewChars > 0 && !string.IsNullOrEmpty(req.Data))
                 {
-                    _log.LogInformation("diffPreview: {Preview}", Preview(req.Diff, DiffPreviewChars));
+                    _log.LogInformation("diffPreview: {Preview}", Preview(req.Data, DiffPreviewChars));
                 }
             }
             else if (string.Equals(toolName, "generate_docs", StringComparison.OrdinalIgnoreCase))

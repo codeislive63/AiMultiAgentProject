@@ -21,9 +21,8 @@ public sealed class CodeReviewDebugController(SseMcpClient mcpSseClient) : Contr
             toolName,
             new
             {
-                title = request.Title,
-                description = request.Description,
-                diff = request.Diff
+                fileName = request.FileName,
+                data = request.Data
             },
             ct: ct);
 
@@ -33,7 +32,6 @@ public sealed class CodeReviewDebugController(SseMcpClient mcpSseClient) : Contr
 
 public sealed class CodeReviewRequest
 {
-    public string Title { get; init; } = default!;
-    public string Description { get; init; } = default!;
-    public string Diff { get; init; } = default!;
+    public string FileName { get; init; } = default!;
+    public string Data { get; init; } = default!;
 }
