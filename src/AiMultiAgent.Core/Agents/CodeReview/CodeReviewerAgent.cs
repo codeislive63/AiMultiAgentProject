@@ -23,8 +23,8 @@ public sealed class CodeReviewerAgent
     /// <param name="log">Логгер для трассировки и диагностики</param>
     public CodeReviewerAgent(IChatClient chat, ILogger<CodeReviewerAgent> log)
     {
-        _chat = chat;
-        _log = log;
+        _chat = chat ?? throw new ArgumentNullException(nameof(chat));
+        _log = log ?? throw new ArgumentNullException(nameof(log));
     }
 
     public CodeReviewerAgent()
