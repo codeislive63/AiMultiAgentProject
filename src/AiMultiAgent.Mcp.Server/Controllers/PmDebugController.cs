@@ -6,20 +6,22 @@ namespace AiMultiAgent.Mcp.Server.Controllers;
 
 [ApiController]
 [Route("[controller]/mcp")]
-public sealed class PmDebugController(McpSseClient mcpSseClient) : ControllerBase
+public sealed class PmDebugController(IMcpClient mcpClient) : ControllerBase
 {
-    // GET /PmDebug/mcp/plan?goal=...
-    [HttpGet("plan")]
-    public async Task<ActionResult<PmPlan>> Plan(
-        [FromQuery] string goal,
-        CancellationToken ct)
+    /// <summary>
+    /// POST /PmDebug/mcp/report
+    /// Дёргает MCP tool "pm_report" и возвращает агрегированный отчёт.
+    /// </summary>
+    [HttpPost("report")]
+    public async Task<ActionResult<PmOrchestrationReport>> Report([FromBody] PmOrchestrationRequest request, CancellationToken ct)
     {
-        const string toolName = "pm_plan";
+        const string toolName = "pm_report";
 
-        var result = await mcpSseClient.CallToolAsync<PmPlan>(
+        var result = await mcpClient.CallToolAsync<PmOrchestrationReport>(
             toolName,
-            new { goal },
-            ct: ct);
+            request,
+            ct: ct
+        );
 
         return Ok(result);
     }

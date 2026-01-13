@@ -2,6 +2,6 @@
 
 public sealed class PmPlan
 {
-    public string Goal { get; init; } = default!;
-    public List<PmStep> Steps { get; init; } = [];
+    public string Objective { get; set; } = "";
+    public List<PmPlanStep> Steps { get; set; } = [];
 }

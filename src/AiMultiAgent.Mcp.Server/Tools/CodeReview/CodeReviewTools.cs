@@ -7,13 +7,12 @@ namespace AiMultiAgent.Mcp.Server.Tools.CodeReview;
 [McpServerToolType]
 public sealed class CodeReviewTools(CodeReviewerAgent agent)
 {
-    [McpServerTool(Name = "code_review", Title = "Сделать ревью PR")]
+    [McpServerTool(Name = "code_review", Title = "Сделать ревью коммита")]
     public Task<CodeReviewResult> ReviewAsync(
-        [Description("Заголовок PR")] string title,
-        [Description("Описание PR")] string description,
-        [Description("Diff в любом удобном формате")] string diff,
+        [Description("Имя файла")] string fileName,
+        [Description("Содержимое")] string data,
         CancellationToken ct = default)
     {
-        return agent.ReviewAsync(title, description, diff, ct);
+        return agent.ReviewAsync(fileName, data, ct);
     }
 }
