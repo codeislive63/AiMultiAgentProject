@@ -1,1 +1,27 @@
 @host = https://localhost:7244
+
+### Test Documentation Agent через Debug Controller
+POST {{host}}/documentationdebug/mcp/generate
+Content-Type: application/json
+
+{
+  "componentName": "DocumentationAgent",
+  "description": "Агент для генерации документации компонентов с помощью LLM. Генерирует Markdown, JSON и PlantUML диаграммы."
+}
+
+### Test через MCP endpoint (generate_docs tool)
+POST {{host}}/api/mcp
+Content-Type: application/json
+
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "generate_docs",
+    "arguments": {
+      "componentName": "TestComponent",
+      "description": "Тестовый компонент для проверки генерации документации"
+    }
+  }
+}
