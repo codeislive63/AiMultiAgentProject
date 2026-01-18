@@ -10,6 +10,7 @@
     <PackageReference Include="Google_GenerativeAI" Version="3.6.1" />
     <PackageReference Include="Microsoft.Extensions.AI" Version="10.1.1" />
     <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.1" />
+    <PackageReference Include="PlantUml.Net" Version="1.4.80" />
   </ItemGroup>
 
   <ItemGroup>

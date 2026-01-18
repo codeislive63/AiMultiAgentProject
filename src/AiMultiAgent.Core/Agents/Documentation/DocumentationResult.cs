@@ -18,6 +18,11 @@ public sealed class DocumentationResult
     public string? UmlPlantUml { get; init; }
 
     /// <summary>
+    /// Изображение PlantUML диаграммы в формате PNG (base64 строка)
+    /// </summary>
+    public string? UmlPlantUmlImageBase64 { get; init; }
+
+    /// <summary>
     /// Структурированные JSON-данные о компоненте
     /// </summary>
     public DocumentationJsonData? StructuredJson { get; init; }

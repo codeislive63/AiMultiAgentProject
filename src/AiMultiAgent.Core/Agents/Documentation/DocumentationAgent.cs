@@ -1,5 +1,6 @@
 ﻿using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
+using PlantUml.Net;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -16,6 +17,14 @@ public sealed class DocumentationAgent
     private readonly ILogger<DocumentationAgent>? _log;
 
     private static readonly TimeSpan _timeout = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    /// Общие настройки JSON-сериализации для десериализации ответов LLM
+    /// </summary>
+    private static readonly JsonSerializerOptions JsonSerializerOptions = new()
+    {
+        PropertyNameCaseInsensitive = true
+    };
 
     /// <summary>
     /// Создаёт новый экземпляр агента документации с LLM-интеграцией.
@@ -45,7 +54,7 @@ public sealed class DocumentationAgent
         if (_chat == null || _log == null)
         {
             _log?.LogWarning("DocumentationAgent: LLM не настроен, используется fallback-заглушка");
-            return CreateFallbackResult(componentName, description);
+            return await CreateFallbackResultAsync(componentName, description, ct);
         }
 
         try
@@ -58,12 +67,16 @@ public sealed class DocumentationAgent
             // Генерируем PlantUML диаграмму отдельным запросом
             var uml = await GeneratePlantUmlAsync(componentName, description, ct);
 
+            // Конвертируем PlantUML текст в изображение PNG
+            var umlImageBase64 = await ConvertPlantUmlToImageAsync(uml, ct);
+
             _log.LogInformation("Documentation generation completed for component {Component}", componentName);
 
             return new DocumentationResult
             {
                 Markdown = markdown,
                 UmlPlantUml = uml,
+                UmlPlantUmlImageBase64 = umlImageBase64,
                 StructuredJson = jsonData
             };
         }
@@ -74,7 +87,7 @@ public sealed class DocumentationAgent
         catch (Exception ex)
         {
             _log.LogWarning(ex, "LLM documentation generation failed for {Component}, using fallback", componentName);
-            return CreateFallbackResult(componentName, description);
+            return await CreateFallbackResultAsync(componentName, description, ct);
         }
     }
 
@@ -122,7 +135,7 @@ public sealed class DocumentationAgent
         var json = await AskJsonAsync(system, user, ct);
         var response = JsonSerializer.Deserialize<DocumentationLlmResponse>(
             json,
-            new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
+            JsonSerializerOptions
         );
 
         if (response == null || string.IsNullOrWhiteSpace(response.Markdown))
@@ -228,6 +241,43 @@ public sealed class DocumentationAgent
     }
 
     /// <summary>
+    /// Конвертирует PlantUML текст в PNG изображение (base64 строка).
+    /// Использует PlantUML.Net библиотеку.
+    /// </summary>
+    private async Task<string?> ConvertPlantUmlToImageAsync(string? plantUmlText, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(plantUmlText))
+        {
+            return null;
+        }
+
+        try
+        {
+            var factory = new RendererFactory();
+            var renderer = factory.CreateRenderer(new PlantUmlSettings());
+
+            var imageBytes = await renderer.RenderAsync(plantUmlText, OutputFormat.Png, ct);
+
+            if (imageBytes == null || imageBytes.Length == 0)
+            {
+                _log?.LogWarning("PlantUML renderer returned empty image");
+                return null;
+            }
+
+            return Convert.ToBase64String(imageBytes);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _log?.LogWarning(ex, "Failed to convert PlantUML to image");
+            return null;
+        }
+    }
+
+    /// <summary>
     /// Отправляет запрос LLM и получает JSON-ответ.
     /// При ошибке пытается исправить один раз.
     /// </summary>
@@ -239,10 +289,11 @@ public sealed class DocumentationAgent
             new ChatMessage(ChatRole.User, user)
         };
 
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        timeout.CancelAfter(_timeout);
+        // Создаём отдельный токен для первого вызова
+        using var firstTimeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        firstTimeout.CancelAfter(_timeout);
 
-        var response = await _chat!.GetResponseAsync(messages, cancellationToken: timeout.Token);
+        var response = await _chat!.GetResponseAsync(messages, cancellationToken: firstTimeout.Token);
         var text = response.Text ?? response.Messages?.LastOrDefault()?.Text;
 
         var extracted = TryExtractJson(text);
@@ -262,7 +313,11 @@ public sealed class DocumentationAgent
             )
         };
 
-        var repair = await _chat.GetResponseAsync(repairMessages, cancellationToken: timeout.Token);
+        // Создаём отдельный токен для repair, чтобы он имел полный таймаут
+        using var repairTimeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        repairTimeout.CancelAfter(_timeout);
+
+        var repair = await _chat.GetResponseAsync(repairMessages, cancellationToken: repairTimeout.Token);
         extracted = TryExtractJson(repair.Text ?? repair.Messages?.LastOrDefault()?.Text);
 
         if (extracted == null)
@@ -341,7 +396,10 @@ public sealed class DocumentationAgent
     /// <summary>
     /// Создаёт fallback-результат при ошибке LLM.
     /// </summary>
-    private static DocumentationResult CreateFallbackResult(string componentName, string description)
+    private async Task<DocumentationResult> CreateFallbackResultAsync(
+        string componentName,
+        string description,
+        CancellationToken ct)
     {
         var markdown = $"""
             # {componentName}
@@ -356,10 +414,14 @@ public sealed class DocumentationAgent
             по коду и UML-диаграмма.
             """;
 
+        var fallbackUml = CreateFallbackUml(componentName);
+        var fallbackImage = await ConvertPlantUmlToImageAsync(fallbackUml, ct);
+
         return new DocumentationResult
         {
             Markdown = markdown,
-            UmlPlantUml = CreateFallbackUml(componentName),
+            UmlPlantUml = fallbackUml,
+            UmlPlantUmlImageBase64 = fallbackImage,
             StructuredJson = new DocumentationJsonData
             {
                 ComponentName = componentName,

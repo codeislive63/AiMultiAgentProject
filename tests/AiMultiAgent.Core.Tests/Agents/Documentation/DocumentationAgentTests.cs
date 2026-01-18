@@ -43,6 +43,10 @@ public sealed class DocumentationAgentTests
         Assert.NotNull(result.StructuredJson);
         Assert.Equal(ComponentName, result.StructuredJson.ComponentName);
         Assert.Equal(ComponentDescription, result.StructuredJson.Description);
+
+        // Проверяем, что изображение PlantUML сгенерировано (base64 строка)
+        Assert.NotNull(result.UmlPlantUmlImageBase64);
+        Assert.NotEmpty(result.UmlPlantUmlImageBase64);
     }
 
     /// <summary>
@@ -70,6 +74,10 @@ public sealed class DocumentationAgentTests
         // StructuredJson должен содержать базовые данные
         Assert.Equal("MyService", result.StructuredJson!.ComponentName);
         Assert.Equal("Сервис для обработки данных", result.StructuredJson.Description);
+
+        // Проверяем, что изображение PlantUML сгенерировано
+        Assert.NotNull(result.UmlPlantUmlImageBase64);
+        Assert.NotEmpty(result.UmlPlantUmlImageBase64);
     }
 
     /// <summary>
