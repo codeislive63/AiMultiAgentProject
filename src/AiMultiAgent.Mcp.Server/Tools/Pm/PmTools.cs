@@ -19,7 +19,8 @@ public sealed class PmTools(PmAgent agent)
         [Description("Описание компонента для доков")] string componentDescription,
         CancellationToken ct = default) => agent.OrchestrateAsync(new PmOrchestrationRequest
         {
-            
+            FileName = fileName,
+            Data = data,
             ComponentName = componentName,
             ComponentDescription = componentDescription
         }, ct);
