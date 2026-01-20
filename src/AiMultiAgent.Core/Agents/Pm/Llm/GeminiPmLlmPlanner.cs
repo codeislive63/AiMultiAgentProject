@@ -1,6 +1,8 @@
 ﻿using GenerativeAI.Exceptions;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Caching.Memory;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 
 namespace AiMultiAgent.Core.Agents.Pm.Llm;
@@ -15,23 +17,28 @@ public sealed partial class GeminiPmLlmPlanner(IChatClient chat, IMemoryCache ca
 
     private static readonly TimeSpan _llmTimeout = TimeSpan.FromSeconds(25);
 
-    private static JsonSerializerOptions JsonOpts()
+    private static readonly JsonSerializerOptions _jsonOpts = new()
     {
-        return new JsonSerializerOptions
-        {
-            PropertyNameCaseInsensitive = true
-        };
-    }
+        PropertyNameCaseInsensitive = true
+    };
 
     /// <summary>
     /// Создаёт план выполнения шагов для PM агента. Возвращает строго JSON
     /// </summary>
-    public async Task<PmPlan> CreatePlanAsync(PmOrchestrationRequest req, CancellationToken ct)
+    public async Task<PmPlan> CreatePlanAsync(PmRequest req, CancellationToken ct)
     {
         var system =
         """
             You are a PM planner. Return ONLY valid JSON. No markdown, no code fences, no extra text.
             Output MUST start with '{' and end with '}'.
+
+            Input request JSON contains:
+            - files: array of { fileName: string, data: string }
+            - componentName: string|null
+            - componentDescription: string|null
+
+            You MUST create one "code_review" step for EACH file in "files".
+            You MUST create exactly one "generate_docs" step for the component.
 
             Allowed tools: code_review, generate_docs.
 
@@ -53,14 +60,21 @@ public sealed partial class GeminiPmLlmPlanner(IChatClient chat, IMemoryCache ca
         var user = "Request JSON:\n" + JsonSerializer.Serialize(req);
         var json = await AskJsonAsync("plan", system, user, ct);
 
-        return JsonSerializer.Deserialize<PmPlan>(json, JsonOpts())!;
+        try
+        {
+            return JsonSerializer.Deserialize<PmPlan>(json, _jsonOpts)!;
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException("Не удалось разобрать JSON плана от LLM: ответ имеет неверный формат.", ex);
+        }
     }
 
     /// <summary>
     /// Агрегирует toolResults + trace в финальный отчёт. Возвращает строго JSON
     /// </summary>
-    public async Task<PmOrchestrationReport> AggregateAsync(
-        PmOrchestrationRequest req,
+    public async Task<PmReport> AggregateAsync(
+        PmRequest req,
         object toolResults,
         List<TraceEvent> traces,
         CancellationToken ct)
@@ -89,7 +103,15 @@ public sealed partial class GeminiPmLlmPlanner(IChatClient chat, IMemoryCache ca
                    "\nTrace:\n" + JsonSerializer.Serialize(traces);
 
         var json = await AskJsonAsync("agg", system, user, ct);
-        return JsonSerializer.Deserialize<PmOrchestrationReport>(json, JsonOpts())!;
+        
+        try
+        {
+            return JsonSerializer.Deserialize<PmReport>(json, _jsonOpts)!;
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException("Не удалось разобрать JSON отчёта от LLM: ответ имеет неверный формат.", ex);
+        }
     }
 
     /// <summary>
@@ -242,10 +264,12 @@ public sealed partial class GeminiPmLlmPlanner(IChatClient chat, IMemoryCache ca
     }
 
     /// <summary>
-    /// Формирует ключ кеша для plan/agg.
+    /// Формирует ключ кеша для plan/agg
     /// </summary>
     private static string CacheKey(string kind, string system, string user)
     {
-        return $"{kind}:{system.GetHashCode()}:{user.GetHashCode()}";
+        var payload = $"{kind}\n{system}\n{user}";
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(payload));
+        return $"{kind}:{Convert.ToHexString(bytes)}";
     }
 }

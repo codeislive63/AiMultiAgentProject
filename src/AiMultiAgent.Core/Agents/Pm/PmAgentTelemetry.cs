@@ -50,27 +50,29 @@ internal sealed class PmAgentTelemetry(ILogger log)
             new EventId(2199, nameof(_verboseArgsJson)),
             "Verbose args JSON for tool={Tool}: {ArgsJson}");
 
-    public void LogSuggestedArgs(string toolName, PmOrchestrationRequest req, object? llmSuggestedArgs)
+    public void LogSuggestedArgs(string toolName, PmRequest req, PmFile? file, object? llmSuggestedArgs)
     {
         if (_log.IsEnabled(LogLevel.Information))
         {
             if (string.Equals(toolName, "code_review", StringComparison.OrdinalIgnoreCase))
             {
-                var dataLen = req.Data?.Length ?? 0;
-                var dataSha = Sha256Hex(req.Data);
+                var fileName = file?.FileName ?? "неизвестно";
+                var data = file?.Data;
+                var dataLen = data?.Length ?? 0;
+                var dataSha = Sha256Hex(data);
 
                 _suggestedCodeReviewArgs(
                     _log,
                     toolName,
-                    req.FileName,
+                    fileName,
                     dataSha,
                     dataLen,
                     null
                 );
 
-                if (DiffPreviewChars > 0 && !string.IsNullOrEmpty(req.Data))
+                if (DiffPreviewChars > 0 && !string.IsNullOrEmpty(data))
                 {
-                    _log.LogInformation("diffPreview: {Preview}", Preview(req.Data, DiffPreviewChars));
+                    _log.LogInformation("Фрагмент кода: {Preview}", Preview(data, DiffPreviewChars));
                 }
             }
             else if (string.Equals(toolName, "generate_docs", StringComparison.OrdinalIgnoreCase))
@@ -99,6 +101,7 @@ internal sealed class PmAgentTelemetry(ILogger log)
             TryLogVerboseArgsJson(toolName, llmSuggestedArgs);
         }
     }
+
 
     private static bool IsVerboseArgsEnabled()
         => string.Equals(Environment.GetEnvironmentVariable("PM_LOG_VERBOSE_ARGS"), "true", StringComparison.OrdinalIgnoreCase);
