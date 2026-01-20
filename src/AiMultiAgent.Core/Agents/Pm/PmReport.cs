@@ -1,6 +1,6 @@
 ﻿namespace AiMultiAgent.Core.Agents.Pm;
 
-public sealed class PmOrchestrationReport
+public sealed class PmReport
 {
     public Dictionary<string, object?> Meta { get; set; } = [];
     public Dictionary<string, object?> ToolResults { get; set; } = [];

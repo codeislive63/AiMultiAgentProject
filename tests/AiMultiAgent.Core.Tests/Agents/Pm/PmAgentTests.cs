@@ -87,10 +87,10 @@ public sealed class PmAgentTests
     /// </summary>
     private sealed class FakePlanner(
         PmPlan plan,
-        Func<PmOrchestrationRequest, object, List<TraceEvent>, PmOrchestrationReport> aggregate) : IPmPlanner
+        Func<PmRequest, object, List<TraceEvent>, PmReport> aggregate) : IPmPlanner
     {
         private readonly PmPlan _plan = plan;
-        private readonly Func<PmOrchestrationRequest, object, List<TraceEvent>, PmOrchestrationReport> _aggregate = aggregate;
+        private readonly Func<PmRequest, object, List<TraceEvent>, PmReport> _aggregate = aggregate;
 
         /// <summary>
         /// Счётчик вызовов <see cref="CreatePlanAsync"/>
@@ -105,7 +105,7 @@ public sealed class PmAgentTests
         /// <summary>
         /// Возвращает заранее заданный план
         /// </summary>
-        public Task<PmPlan> CreatePlanAsync(PmOrchestrationRequest req, CancellationToken ct)
+        public Task<PmPlan> CreatePlanAsync(PmRequest req, CancellationToken ct)
         {
             CreatePlanCalls++;
             return Task.FromResult(_plan);
@@ -114,8 +114,8 @@ public sealed class PmAgentTests
         /// <summary>
         /// Возвращает результат агрегации
         /// </summary>
-        public Task<PmOrchestrationReport> AggregateAsync(
-            PmOrchestrationRequest req,
+        public Task<PmReport> AggregateAsync(
+            PmRequest req,
             object toolResults,
             List<TraceEvent> traces,
             CancellationToken ct)
@@ -157,7 +157,7 @@ public sealed class PmAgentTests
         var planner = new FakePlanner(
             plan,
             aggregate: (_, __, ___) =>
-                new PmOrchestrationReport
+                new PmReport
                 {
                     Summary = "LLM aggregation summary",
                     Risks = [],
@@ -236,7 +236,7 @@ public sealed class PmAgentTests
 
         var planner = new FakePlanner(
             plan,
-            aggregate: (_, __, ___) => new PmOrchestrationReport
+            aggregate: (_, __, ___) => new PmReport
             {
                 Summary = "LLM aggregation summary",
                 Risks = [],
@@ -290,7 +290,7 @@ public sealed class PmAgentTests
 
         var planner = new FakePlanner(
             plan,
-            aggregate: (_, __, ___) => new PmOrchestrationReport
+            aggregate: (_, __, ___) => new PmReport
             {
                 Summary = "LLM aggregation summary",
                 Risks = [],
@@ -320,26 +320,25 @@ public sealed class PmAgentTests
     /// </summary>
     private static PmAgent CreatePmAgent(IMcpClient mcp, IPmPlanner planner)
     {
-        var codeReviewStub = new CodeReviewerAgent();
-        var docsStub = new DocumentationAgent();
-
         return new PmAgent(
             mcp,
-            codeReviewStub,
-            docsStub,
             planner,
             NullLogger<PmAgent>.Instance
         );
     }
 
     /// <summary>
-    /// Создаёт тестовый <see cref="PmOrchestrationRequest"/>
+    /// Создаёт тестовый <see cref="PmRequest"/>
     /// </summary>
-    private static PmOrchestrationRequest CreateRequest() => new()
+    private static PmRequest CreateRequest() => new()
     {
-        FileName = "File Name",
-        Data = "Data",
+        Files =
+        [
+            new PmFile { FileName = "1.txt", Data = "1asf asf asfx" },
+            new PmFile { FileName = "2.txt", Data = "2zfasfd asf" },
+        ],
         ComponentName = "Component",
         ComponentDescription = "Component description"
     };
+
 }
