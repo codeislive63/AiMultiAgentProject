@@ -10,7 +10,7 @@ namespace AiMultiAgent.Core.Agents.Pm.Llm;
 /// <summary>
 /// IPmPlanner на базе Gemini
 /// </summary>
-public sealed partial class GeminiPmLlmPlanner(IChatClient chat, IMemoryCache cache) : IPmPlanner
+public sealed class GeminiPmLlmPlanner(IChatClient chat, IMemoryCache cache) : IPmPlanner
 {
     private readonly IChatClient _chat = chat;
     private readonly IMemoryCache _cache = cache;
