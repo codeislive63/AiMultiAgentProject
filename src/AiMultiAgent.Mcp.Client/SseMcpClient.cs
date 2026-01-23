@@ -3,6 +3,7 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Newtonsoft.Json.Serialization;
 using System.Net.Http.Headers;
+using System.Net.Sockets;
 using System.Text;
 
 namespace AiMultiAgent.Mcp.Client;
@@ -33,37 +34,62 @@ public sealed class SseMcpClient(HttpClient http, IOptions<McpClientOptions> opt
     /// </summary>
     public async Task<JToken> SendAsync(object payload, CancellationToken ct = default)
     {
-        var json = JsonConvert.SerializeObject(payload);
+        const int maxRetries = 3;          // макс. попыток
+        const int delayBetweenRetriesMs = 2000; // пауза между попытками
+        int attempt = 0;
 
-        var request = new HttpRequestMessage(HttpMethod.Post, _options.EndpointPath);
-        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("text/event-stream"));
-        request.Content = new StringContent(json, Encoding.UTF8, "application/json");
-
-        using var response = await _http.SendAsync(
-            request,
-            HttpCompletionOption.ResponseHeadersRead,
-            ct
-        );
-
-        response.EnsureSuccessStatusCode();
-
-        await using var stream = await response.Content.ReadAsStreamAsync(ct);
-        using var reader = new StreamReader(stream);
-
-        string? line;
-
-        while ((line = await reader.ReadLineAsync(ct)) != null)
+        while (true)
         {
-            if (!line.StartsWith("data:", StringComparison.OrdinalIgnoreCase))
-                continue;
+            attempt++;
 
-            var jsonPart = line["data:".Length..].Trim();
-            return JToken.Parse(jsonPart);
+            try
+            {
+                var json = JsonConvert.SerializeObject(payload);
+
+                var request = new HttpRequestMessage(HttpMethod.Post, _options.EndpointPath);
+                request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("text/event-stream"));
+                request.Content = new StringContent(json, Encoding.UTF8, "application/json");
+
+                using var response = await _http.SendAsync(
+                    request,
+                    HttpCompletionOption.ResponseHeadersRead,
+                    ct
+                );
+
+                response.EnsureSuccessStatusCode();
+
+                await using var stream = await response.Content.ReadAsStreamAsync(ct);
+                using var reader = new StreamReader(stream);
+
+                string? line;
+                while ((line = await reader.ReadLineAsync(ct)) != null)
+                {
+                    if (!line.StartsWith("data:", StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    var jsonPart = line["data:".Length..].Trim();
+                    return JToken.Parse(jsonPart);
+                }
+
+                throw new InvalidOperationException("MCP response does not contain 'data:' line");
+            }
+            catch (Exception ex) when (
+                ex is TaskCanceledException ||
+                ex is IOException ||
+                ex.InnerException is SocketException)
+            {
+                if (attempt >= maxRetries || ct.IsCancellationRequested)
+                    throw; // не можем повторить больше раз или токен отменён
+
+                // логируем попытку
+                Console.WriteLine($"Attempt {attempt} failed: {ex.Message}. Retrying in {delayBetweenRetriesMs}ms...");
+
+                await Task.Delay(delayBetweenRetriesMs, ct); // пауза перед повтором
+            }
         }
-
-        throw new InvalidOperationException("MCP response does not contain 'data:' line");
     }
+
 
     /// <summary>
     /// Универсальный хелпер для tools/call.

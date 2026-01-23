@@ -9,6 +9,7 @@ using Microsoft.Extensions.AI;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Serialization;
 using Scalar.AspNetCore;
+using static System.Net.WebRequestMethods;
 
 const string McpPath = "/api/mcp";
 
@@ -35,10 +36,19 @@ builder.Services.Configure<RouteOptions>(options =>
     options.LowercaseQueryStrings = false;
 });
 
+var baseUri = builder.Configuration["API_URI"]
+              ?? Environment.GetEnvironmentVariable("API_URI")
+              ?? throw new InvalidOperationException("API_URI is not set");
+
 
 builder.Services.AddSseMcpClient(
     options => options.EndpointPath = McpPath,
-    http => http.BaseAddress = new Uri("https://localhost:7244")
+     http =>
+     {
+         http.BaseAddress = new Uri(baseUri);
+         http.Timeout = Timeout.InfiniteTimeSpan; // ждать столько, сколько сервер отдаёт
+                                                  // или: http.Timeout = TimeSpan.FromMinutes(10); // ждать максимум 10 минут
+     }
 );
 
 
@@ -49,6 +59,8 @@ builder.Services.AddMcpServer()
 
 var geminiApiKey = builder.Configuration["GEMINI_API_KEY"] ??
                    Environment.GetEnvironmentVariable("GEMINI_API_KEY");
+
+Console.WriteLine(geminiApiKey);
 
 if (string.IsNullOrWhiteSpace(geminiApiKey))
 {

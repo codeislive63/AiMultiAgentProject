@@ -95,55 +95,83 @@ public sealed class CodeReviewerAgent
     /// Если LLM вернул некорректный JSON, выполняется один повторный запрос на исправление.
     /// </summary>
     private async Task<string> AskJsonAsync(
-        string system,
-        string user,
-        CancellationToken ct)
+      string system,
+      string user,
+      CancellationToken ct)
     {
         var messages = new[]
         {
-            new ChatMessage(ChatRole.System, system),
-            new ChatMessage(ChatRole.User, user)
-        };
+        new ChatMessage(ChatRole.System, system),
+        new ChatMessage(ChatRole.User, user)
+    };
 
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeout.CancelAfter(_timeout);
 
-        var response = await _chat.GetResponseAsync(messages, cancellationToken: timeout.Token);
-        var text = response.Text ?? response.Messages?.LastOrDefault()?.Text;
-
-        var extracted = TryExtractJson(text);
-        if (extracted != null)
+        try
         {
-            return extracted;
+            var response = await _chat.GetResponseAsync(
+                messages,
+                options: null,
+                cancellationToken: timeout.Token);
+
+            var text = response.Text
+                ?? response.Messages?.LastOrDefault()?.Text;
+
+            var extracted = TryExtractJson(text);
+            if (extracted != null)
+                return extracted;
+
+            return CreateErrorJson(
+                "Invalid LLM response",
+                "Model returned malformed JSON.");
         }
-
-        _log.LogWarning("Invalid JSON from LLM. Attempting repair.");
-
-        var repairMessages = new[]
+        catch (OperationCanceledException)
         {
-            new ChatMessage(ChatRole.System, system),
-            new ChatMessage(
-                ChatRole.User,
-                "Fix the output. Return ONLY valid JSON that matches the schema.\n\nBAD_OUTPUT:\n" + text
-            )
+            _log.LogWarning("LLM request timed out");
+
+            return CreateErrorJson(
+                "Timeout",
+                "LLM did not respond within the allowed time.");
+        }
+        catch (GenerativeAI.Exceptions.ApiException ex)
+        {
+            _log.LogError(ex, "LLM API error");
+
+            return CreateErrorJson(
+                "LLM unavailable",
+                $"LLM API error: {ex.Message}");
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Unexpected error during code review");
+
+            return CreateErrorJson(
+                "Internal error",
+                "Unexpected error while performing code review.");
+        }
+    }
+
+    private static string CreateErrorJson(string title, string details)
+    {
+        var error = new
+        {
+            summary = "Code review failed",
+            issues = new[]
+            {
+            new
+            {
+                severity = "error",
+                title = title,
+                details = details
+            }
+        },
+            suggestions = Array.Empty<string>()
         };
 
-        var repair = await _chat.GetResponseAsync(repairMessages, cancellationToken: timeout.Token);
-        extracted = TryExtractJson(repair.Text ?? repair.Messages?.LastOrDefault()?.Text);
-
-        if (extracted == null)
-        {
-            _log.LogError(
-                "LLM failed to produce valid JSON after repair.\nOriginal:\n{Orig}\nRepaired:\n{Rep}",
-                text,
-                repair.Text
-            );
-
-            throw new InvalidOperationException("LLM failed to return valid CodeReview JSON");
-        }
-
-        return extracted;
+        return JsonSerializer.Serialize(error);
     }
+
 
     /// <summary>
     /// Пытается извлечь валидный JSON-объект из произвольного текста LLM.
@@ -214,5 +242,6 @@ public sealed class CodeReviewerAgent
         - Find real bugs, security risks, performance problems and design flaws.
         - Be strict and professional.
         - If code is clean, return empty arrays for issues and suggestions.
+        - Use only exists severity.
         """;
         }

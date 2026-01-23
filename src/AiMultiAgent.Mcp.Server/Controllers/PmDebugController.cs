@@ -13,16 +13,22 @@ public sealed class PmDebugController(IMcpClient mcpClient) : ControllerBase
     /// Дёргает MCP tool "pm_report" и возвращает агрегированный отчёт.
     /// </summary>
     [HttpPost("report")]
-    public async Task<ActionResult<PmReport>> Report([FromBody] PmRequest request, CancellationToken ct)
+    public async Task<ActionResult<PmReport>> Report(
+     [FromBody] PmRequest request,
+     CancellationToken ct)
     {
         const string toolName = "pm_report";
 
         var result = await mcpClient.CallToolAsync<PmReport>(
             toolName,
-            request,
-            ct: ct
+            new
+            {
+                request = request
+            },
+            ct : ct
         );
 
         return Ok(result);
     }
+
 }
