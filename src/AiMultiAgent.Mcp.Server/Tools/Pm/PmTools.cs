@@ -5,13 +5,15 @@ using System.ComponentModel;
 namespace AiMultiAgent.Mcp.Server.Tools.Pm;
 
 [McpServerToolType]
-public sealed class PmTools(PmAgent pmAgent)
+public sealed class PmTools(PmAgent agent)
 {
-    [McpServerTool(Name = "pm_plan", Title = "Сделать план по цели")]
-    public Task<PmPlan> PlanAsync(
-        [Description("Цель / what to achieve")] string goal,
-        CancellationToken ct = default)
-    {
-        return pmAgent.PlanAsync(goal, ct);
-    }
+    /// <summary>
+    /// Вызывает code_review и generate_docs,
+    /// агрегирует результаты и возвращает единый отчёт
+    /// </summary>
+    [McpServerTool(Name = "pm_report", Title = "PM: оркестрация code_review + generate_docs")]
+
+    public Task<PmReport> ReportAsync([Description("PM request DTO")] PmRequest request, CancellationToken ct = default) 
+        => agent.OrchestrateAsync(request, ct);
+
 }
