@@ -60,7 +60,6 @@ builder.Services.AddMcpServer()
 var geminiApiKey = builder.Configuration["GEMINI_API_KEY"] ??
                    Environment.GetEnvironmentVariable("GEMINI_API_KEY");
 
-Console.WriteLine(geminiApiKey);
 
 if (string.IsNullOrWhiteSpace(geminiApiKey))
 {
