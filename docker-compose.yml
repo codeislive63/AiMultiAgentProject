@@ -6,6 +6,8 @@ services:
     image: ngrok/ngrok:latest
     environment:
       NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN}
+    ports:
+      - "4040:4040" 
     entrypoint: ["ngrok"]
     command: ["http", "n8n:5678"]
     depends_on:
@@ -20,6 +22,7 @@ services:
       - N8N_WEBHOOK_URL=${N8N_WEBHOOK_URL}
       - N8N_EDITOR_BASE_URL=${N8N_EDITOR_BASE_URL}
       - N8N_HOST=${N8N_HOST}
+      - N8N_PROTOCOL=https
       - N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=false
       - N8N_TRUST_PROXY=true
     volumes:
